@@ -1,0 +1,45 @@
+import asyncio
+import feedparser
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import Message
+
+API_TOKEN = ""
+RSS_URLS = [
+    "https://lenta.ru/rss",
+    "https://ria.ru/export/rss2/archive/index.xml",
+    "https://tass.ru/rss/v2.xml",
+    "https://meduza.io/rss/all",
+]
+
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+
+# Хранилище отправленных новостей, чтобы не слать повторно
+sent_links = set()
+USERS = set()
+
+async def fetch_news():
+    while True:
+        for url in RSS_URLS:
+            feed = feedparser.parse(url)
+            for entry in feed.entries:
+                if entry.link not in sent_links:
+                    text = f"📰 {entry.title}\n{entry.link}"
+                    # Отправка всем пользователям
+                    for user_id in USERS:
+                        await bot.send_message(user_id, text)
+                    sent_links.add(entry.link)
+        await asyncio.sleep(120)  # проверка каждые 2 минут
+
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    USERS.add(message.from_user.id)
+    await message.answer("Привет! Я буду присылать тебе новости автоматически.")
+
+async def main():
+    asyncio.create_task(fetch_news())
+    await dp.start_polling(bot)
+    
+if __name__ == "__main__":
+    asyncio.run(main())
